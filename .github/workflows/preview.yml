@@ -1,0 +1,43 @@
+name: Preview deployment to Google cloud
+
+on:
+  pull_request:
+    branches:
+      - main
+
+env:
+  PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+  PULUMI_STACK_NAME: ${{ vars.STACK_NAME }}
+  PULUMI_WORKING_DIRECTORY: .
+
+jobs:
+  preview:
+    runs-on: ${{ fromJSON('["ubuntu-latest", "self-hosted"]')[github.repository == 'github/docs-internal'] }}
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
+    steps:
+      - uses: 'actions/checkout@v3'
+      - id: 'auth'
+        uses: 'google-github-actions/auth@v1'
+        with:
+          workload_identity_provider: 'projects/${{ vars.PROJECT_NUMBER }}/locations/global/workloadIdentityPools/${{ vars.WORKLOAD_POOL }}/providers/${{ vars.WORKLOAD_PROVIDER }}'
+          service_account: 'github-actions@${{ vars.PROJECT_ID }}.iam.gserviceaccount.com'
+
+      - name: Install Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.19.x
+
+      - run: go mod download
+        working-directory: ${{ env.PULUMI_WORKING_DIRECTORY }}
+
+      - uses: pulumi/actions@v4
+        with:
+          command: preview
+          comment-on-pr: true
+          stack-name: ${{ env.PULUMI_STACK_NAME }}
+          work-dir: ${{ env.PULUMI_WORKING_DIRECTORY }}
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
